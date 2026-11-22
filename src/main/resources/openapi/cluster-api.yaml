@@ -1,0 +1,134 @@
+openapi: 3.1.0
+info:
+  title: Spool API
+  version: 1.0.0
+  description: |
+    Manages a cluster of Spool nodes (ADR-022). A node registers with its id and its address and then sends
+    heartbeats; one whose last heartbeat is older than the heartbeat timeout is down. Every route but this contract
+    needs a caller identified by one of the providers of the authentication block (ADR-013), with the role the route
+    asks for: a caller nobody can identify gets 401, and one without the role 403.
+  license:
+    name: AGPL-3.0-only
+    url: https://www.gnu.org/licenses/agpl-3.0.txt
+paths:
+  /spool/cluster/nodes:
+    post:
+      summary: Register a node, or register it again with a new address
+      description: Needs the node role. The node is up from now.
+      operationId: registerNode
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Registration'
+      responses:
+        '201':
+          description: The node, as the API now knows it
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Node'
+        '400':
+          $ref: '#/components/responses/Error'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+    get:
+      summary: List the nodes of the cluster
+      description: Needs the read role. Nodes come in the order they first registered.
+      operationId: listNodes
+      responses:
+        '200':
+          description: Every node the API knows
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [nodes]
+                properties:
+                  nodes:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Node'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+  /spool/cluster/nodes/{id}/heartbeat:
+    put:
+      summary: Say that a registered node is alive
+      description: Needs the node role. The request has no body.
+      operationId: beat
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '204':
+          description: The heartbeat was noted
+        '404':
+          $ref: '#/components/responses/Error'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+  /spool/openapi.yaml:
+    get:
+      summary: This contract
+      description: Open to anyone.
+      operationId: contract
+      security: []
+      responses:
+        '200':
+          description: The OpenAPI contract of the Spool API
+          content:
+            application/yaml: {}
+components:
+  schemas:
+    Registration:
+      type: object
+      required: [id, address]
+      properties:
+        id:
+          type: string
+          example: node-a
+        address:
+          type: string
+          format: uri
+          example: http://10.0.0.1:8080
+    Node:
+      type: object
+      required: [id, address, state, lastHeartbeat]
+      properties:
+        id:
+          type: string
+        address:
+          type: string
+          format: uri
+        state:
+          type: string
+          enum: [UP, DOWN]
+        lastHeartbeat:
+          type: string
+          format: date-time
+    Error:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: string
+  responses:
+    Error:
+      description: What was wrong with the request
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    Unauthenticated:
+      description: No provider could identify the caller
+    Forbidden:
+      description: The caller lacks the role of the route
