@@ -8,7 +8,8 @@ import software.spool.core.port.http.RouteAccess;
 import java.util.List;
 
 /**
- * The routes of the Spool API: nodes register and beat with the node role, the lists need the read role, and
+ * The routes of the Spool API: nodes register, beat, ask for their assignments and say how they went with the node
+ * role, the lists need the read role, and
  * deploying and withdrawing need the deploy role.
  */
 public final class ClusterRoutes {
@@ -21,6 +22,9 @@ public final class ClusterRoutes {
         return List.of(
                 new RegisterNodeRoute(cluster.nodes(), cluster.timeout()).route(node),
                 new NodeHeartbeatRoute(cluster.nodes()).route(node),
+                new NodeAssignmentsRoute(cluster.nodes(), cluster.timeout(), cluster.deployments(), cluster.assigner())
+                        .route(node),
+                new ReportAssignmentRoute(cluster.reports()).route(node),
                 new ListNodesRoute(cluster.nodes(), cluster.timeout()).route(read),
                 new DeployRoute(cluster.deployer()).route(deploy),
                 new ListDeploymentsRoute(cluster.deployments(), cluster.assigner()).route(read),

@@ -6,6 +6,7 @@ import software.spool.api.deployment.Deployments;
 import software.spool.api.deployment.DescriptorValidation;
 import software.spool.api.deployment.InMemoryDeployments;
 import software.spool.api.deployment.LeastLoadedPlacement;
+import software.spool.api.deployment.NodeReports;
 import software.spool.api.node.ClusterNodes;
 import software.spool.api.node.HeartbeatTimeout;
 import software.spool.api.node.InMemoryClusterNodes;
@@ -15,7 +16,7 @@ import java.time.Duration;
 
 /** What the Spool API keeps of the cluster, its nodes and its deployments, and what it does with them. */
 public record Cluster(ClusterNodes nodes, HeartbeatTimeout timeout, Deployments deployments,
-                      DeploymentAssigner assigner, Deployer deployer) {
+                      DeploymentAssigner assigner, Deployer deployer, NodeReports reports) {
 
     /** A cluster kept in memory, lost when the API restarts. */
     public static Cluster inMemory(Duration heartbeatTimeout, DescriptorValidation validation, Clock clock) {
@@ -23,6 +24,7 @@ public record Cluster(ClusterNodes nodes, HeartbeatTimeout timeout, Deployments 
         HeartbeatTimeout timeout = new HeartbeatTimeout(heartbeatTimeout, clock);
         Deployments deployments = new InMemoryDeployments();
         DeploymentAssigner assigner = new DeploymentAssigner(deployments, nodes, timeout, new LeastLoadedPlacement());
-        return new Cluster(nodes, timeout, deployments, assigner, new Deployer(deployments, validation, assigner));
+        return new Cluster(nodes, timeout, deployments, assigner, new Deployer(deployments, validation, assigner),
+                new NodeReports(deployments));
     }
 }

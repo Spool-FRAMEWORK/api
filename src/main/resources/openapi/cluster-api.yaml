@@ -79,6 +79,67 @@ paths:
           $ref: '#/components/responses/Unauthenticated'
         '403':
           $ref: '#/components/responses/Forbidden'
+  /spool/cluster/nodes/{id}/assignments:
+    get:
+      summary: The deployments assigned to a node
+      description: >
+        Needs the node role. A node asks with each heartbeat, starts what it lacks, stops what it has of more and
+        restarts what changed version. It stops everything once leaseSeconds pass without the API accepting a
+        heartbeat. Before answering, a deployment without a node, or on a node that is down, goes to a live node.
+      operationId: assignmentsOfANode
+      parameters:
+        - $ref: '#/components/parameters/NodeId'
+      responses:
+        '200':
+          description: The deployments of the node
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [leaseSeconds, deployments]
+                properties:
+                  leaseSeconds:
+                    type: integer
+                    description: How long the node may keep running them without the API, the heartbeat timeout
+                  deployments:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Assignment'
+        '404':
+          $ref: '#/components/responses/Error'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+  /spool/cluster/nodes/{id}/assignments/{name}:
+    put:
+      summary: Say whether a deployment assigned to the node runs or failed to start
+      description: >
+        Needs the node role. It counts only for the version the deployment has now and only from the node it is on.
+        A deployment that failed stays on its node until a new version is sent or the node goes down.
+      operationId: reportAssignment
+      parameters:
+        - $ref: '#/components/parameters/NodeId'
+        - $ref: '#/components/parameters/DeploymentName'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AssignmentReport'
+      responses:
+        '204':
+          description: What the node said was noted
+        '400':
+          $ref: '#/components/responses/Error'
+        '404':
+          $ref: '#/components/responses/Error'
+        '409':
+          $ref: '#/components/responses/Error'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
   /spool/deployments:
     get:
       summary: List the deployments with the node each runs on
@@ -194,6 +255,31 @@ components:
         lastHeartbeat:
           type: string
           format: date-time
+    Assignment:
+      type: object
+      required: [name, version, descriptor]
+      properties:
+        name:
+          type: string
+        version:
+          type: integer
+          minimum: 1
+        descriptor:
+          type: string
+          description: The descriptor as it was sent
+    AssignmentReport:
+      type: object
+      required: [version, state]
+      properties:
+        version:
+          type: integer
+          minimum: 1
+        state:
+          type: string
+          enum: [RUNNING, FAILED]
+        error:
+          type: string
+          description: Why it failed to start; required when the state is FAILED
     Deployment:
       type: object
       required: [name, owner, ownerProvider, version, state]
@@ -212,11 +298,14 @@ components:
           minimum: 1
         state:
           type: string
-          enum: [ASSIGNED, WAITING]
-          description: WAITING while no live node can take it
+          enum: [WAITING, STARTING, RUNNING, FAILED]
+          description: WAITING while no live node can take it; otherwise what its node said of it
         node:
           type: [string, 'null']
           description: The node it is assigned to, null while it waits
+        error:
+          type: [string, 'null']
+          description: Why it failed to start, null unless it failed
     Error:
       type: object
       required: [error]
@@ -224,6 +313,13 @@ components:
         error:
           type: string
   parameters:
+    NodeId:
+      name: id
+      in: path
+      required: true
+      description: The id of the node
+      schema:
+        type: string
     DeploymentName:
       name: name
       in: path

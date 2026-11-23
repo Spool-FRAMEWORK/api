@@ -16,6 +16,10 @@ public final class HeartbeatTimeout {
         this.clock = Objects.requireNonNull(clock);
     }
 
+    public Duration duration() {
+        return timeout;
+    }
+
     public NodeState stateOf(ClusterNode node) {
         return node.lastHeartbeat().plus(timeout).isBefore(clock.instant()) ? NodeState.DOWN : NodeState.UP;
     }

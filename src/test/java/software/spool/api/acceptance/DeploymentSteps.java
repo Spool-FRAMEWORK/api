@@ -54,6 +54,24 @@ public class DeploymentSteps {
         theApiListsOn(deployment, node);
     }
 
+    @Given("{string} deployed the descriptor {string}, which waits for a node")
+    public void deployedWaiting(String person, String deployment) throws Exception {
+        deploy(deployment, descriptorOf(deployment));
+        theApiListsAsWaiting(deployment);
+    }
+
+    @Then("the API lists {string} as {string}")
+    public void theApiListsAs(String deployment, String state) throws Exception {
+        assertThat(listed(deployment).get("state").asText()).isEqualTo(state);
+    }
+
+    @Then("the API lists {string} as {string} with the error {string}")
+    public void theApiListsAsWithTheError(String deployment, String state, String error) throws Exception {
+        JsonNode listed = listed(deployment);
+        assertThat(listed.get("state").asText()).isEqualTo(state);
+        assertThat(listed.get("error").asText()).isEqualTo(error);
+    }
+
     @When("{string} deploys the descriptor {string}")
     public void deploys(String person, String deployment) throws Exception {
         deploy(deployment, descriptorOf(deployment));
