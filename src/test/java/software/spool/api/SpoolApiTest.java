@@ -29,7 +29,7 @@ class SpoolApiTest {
                   nodes: {type: HMAC_SIGNATURE, configuration: {header: X-Spool-Signature, secret: a-secret, roles: node}}
                 cluster:
                   authentication: [nodes]
-                  roles: {node: node, read: cluster-reader}
+                  roles: {node: node, read: cluster-reader, deploy: deployer}
                 """.formatted(port));
         SpoolApi api = SpoolApi.start(SpoolApiConfiguration.read(file, Map.<String, String>of()::get), Clock.systemUTC());
         try {

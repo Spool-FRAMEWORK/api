@@ -79,6 +79,82 @@ paths:
           $ref: '#/components/responses/Unauthenticated'
         '403':
           $ref: '#/components/responses/Forbidden'
+  /spool/deployments:
+    get:
+      summary: List the deployments with the node each runs on
+      description: >
+        Needs the read role. Before answering, a deployment without a node, or on a node that is down, goes to the
+        live node with the fewest deployments.
+      operationId: listDeployments
+      responses:
+        '200':
+          description: Every deployment, in the order they were first sent
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [deployments]
+                properties:
+                  deployments:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Deployment'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+  /spool/deployments/{name}:
+    put:
+      summary: Deploy a descriptor under a name, or a new version of the one with that name
+      description: >
+        Needs the deploy role. The descriptor is checked as a node would load it, and each module must have the pieces
+        it needs; what only building finds, such as a type without a plugin, the node reports. It goes whole to the
+        live node with the fewest deployments, or waits for one; a new version stays on its node. Its ${env:NAME} are
+        read in the node.
+      operationId: deploy
+      parameters:
+        - $ref: '#/components/parameters/DeploymentName'
+      requestBody:
+        required: true
+        description: The descriptor, as a single YAML file without include
+        content:
+          application/yaml:
+            schema:
+              type: string
+      responses:
+        '201':
+          description: The new deployment
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Deployment'
+        '200':
+          description: The deployment, in its new version
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Deployment'
+        '400':
+          $ref: '#/components/responses/Error'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+    delete:
+      summary: Withdraw a deployment, so no node runs it any more
+      description: Needs the deploy role.
+      operationId: withdrawDeployment
+      parameters:
+        - $ref: '#/components/parameters/DeploymentName'
+      responses:
+        '204':
+          description: The deployment was withdrawn
+        '404':
+          $ref: '#/components/responses/Error'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
   /spool/openapi.yaml:
     get:
       summary: This contract
@@ -118,12 +194,43 @@ components:
         lastHeartbeat:
           type: string
           format: date-time
+    Deployment:
+      type: object
+      required: [name, owner, ownerProvider, version, state]
+      properties:
+        name:
+          type: string
+          example: orders
+        owner:
+          type: string
+          description: Who sent the last version, as the provider identified it
+        ownerProvider:
+          type: string
+          description: The provider that identified the owner
+        version:
+          type: integer
+          minimum: 1
+        state:
+          type: string
+          enum: [ASSIGNED, WAITING]
+          description: WAITING while no live node can take it
+        node:
+          type: [string, 'null']
+          description: The node it is assigned to, null while it waits
     Error:
       type: object
       required: [error]
       properties:
         error:
           type: string
+  parameters:
+    DeploymentName:
+      name: name
+      in: path
+      required: true
+      description: The name of the deployment, chosen by whoever sends it
+      schema:
+        type: string
   responses:
     Error:
       description: What was wrong with the request

@@ -17,7 +17,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 public class ClusterSteps {
     private static final ObjectMapper JSON = new ObjectMapper();
     private final ApiUnderTest api;
-    private HttpResponse<String> response;
 
     public ClusterSteps(ApiUnderTest api) {
         this.api = api;
@@ -30,8 +29,8 @@ public class ClusterSteps {
 
     @When("the node {string} registers with the address {string}")
     public void registers(String id, String address) throws Exception {
-        response = api.send("POST", "/spool/cluster/nodes", "{\"id\":\"" + id + "\",\"address\":\"" + address + "\"}",
-                Optional.of(ApiUnderTest.NODE_SECRET));
+        HttpResponse<String> response = api.send("POST", "/spool/cluster/nodes",
+                "{\"id\":\"" + id + "\",\"address\":\"" + address + "\"}", Optional.of(ApiUnderTest.NODE_SECRET));
         assertThat(response.statusCode()).as(response.body()).isEqualTo(201);
     }
 
@@ -42,27 +41,27 @@ public class ClusterSteps {
 
     @When("{string} sends a heartbeat")
     public void sendsAHeartbeat(String id) throws Exception {
-        response = api.send("PUT", "/spool/cluster/nodes/" + id + "/heartbeat", "", Optional.of(ApiUnderTest.NODE_SECRET));
+        api.send("PUT", "/spool/cluster/nodes/" + id + "/heartbeat", "", Optional.of(ApiUnderTest.NODE_SECRET));
     }
 
     @When("a caller with no credentials asks for the list of nodes")
     public void noCredentials() throws Exception {
-        response = api.send("GET", "/spool/cluster/nodes", "", Optional.empty());
+        api.send("GET", "/spool/cluster/nodes", "", Optional.empty());
     }
 
     @When("a caller with a wrong signature asks for the list of nodes")
     public void wrongSignature() throws Exception {
-        response = api.send("GET", "/spool/cluster/nodes", "", Optional.of("not-the-secret"));
+        api.send("GET", "/spool/cluster/nodes", "", Optional.of("not-the-secret"));
     }
 
     @When("a node, which cannot read asks for the list of nodes")
     public void aNodeAsks() throws Exception {
-        response = api.send("GET", "/spool/cluster/nodes", "", Optional.of(ApiUnderTest.NODE_SECRET));
+        api.send("GET", "/spool/cluster/nodes", "", Optional.of(ApiUnderTest.NODE_SECRET));
     }
 
     @When("a caller with no credentials asks for {string}")
     public void noCredentialsAskFor(String path) throws Exception {
-        response = api.send("GET", path, "", Optional.empty());
+        api.send("GET", path, "", Optional.empty());
     }
 
     @Then("the API lists {string} as up at {string}")
@@ -85,23 +84,26 @@ public class ClusterSteps {
 
     @Then("the API answers {int} with an error that says {string}")
     public void answersWithError(int status, String text) throws Exception {
-        assertThat(response.statusCode()).isEqualTo(status);
+        HttpResponse<String> response = api.lastResponse();
+        assertThat(response.statusCode()).as(response.body()).isEqualTo(status);
         assertThat(JSON.readTree(response.body()).get("error").asText()).contains(text);
     }
 
     @Then("the API answers {int}")
     public void answers(int status) {
+        HttpResponse<String> response = api.lastResponse();
         assertThat(response.statusCode()).as(response.body()).isEqualTo(status);
     }
 
     @Then("the API answers {int} with the OpenAPI contract")
     public void answersTheContract(int status) {
+        HttpResponse<String> response = api.lastResponse();
         assertThat(response.statusCode()).isEqualTo(status);
         assertThat(response.body()).startsWith("openapi: 3.1.0").contains("/spool/cluster/nodes");
     }
 
     private List<JsonNode> nodesNamed(String id) throws Exception {
-        HttpResponse<String> list = api.send("GET", "/spool/cluster/nodes", "", Optional.of(ApiUnderTest.READER_SECRET));
+        HttpResponse<String> list = api.query("GET", "/spool/cluster/nodes", "", Optional.of(ApiUnderTest.READER_SECRET));
         assertThat(list.statusCode()).as(list.body()).isEqualTo(200);
         return StreamSupport.stream(JSON.readTree(list.body()).get("nodes").spliterator(), false)
                 .filter(node -> node.get("id").asText().equals(id)).toList();

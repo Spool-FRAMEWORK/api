@@ -1,8 +1,8 @@
 package software.spool.api.acceptance;
 
 import io.cucumber.java.After;
-import software.spool.api.node.HeartbeatTimeout;
-import software.spool.api.node.InMemoryClusterNodes;
+import software.spool.api.Cluster;
+import software.spool.api.deployment.DslDescriptorValidation;
 import software.spool.api.node.MovableClock;
 import software.spool.api.route.ClusterRoles;
 import software.spool.api.route.ClusterRoutes;
@@ -24,25 +24,31 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 
-/** The Spool API on a free port, with a node provider and a reader provider, each with its own secret. */
+/**
+ * The Spool API on a free port, with a provider for the nodes, one for the readers and one for the deployer
+ * {@value #DEPLOYER}, each with its own secret. It keeps the last answer a step asked for.
+ */
 public class ApiUnderTest {
     static final String SIGNATURE = "X-Spool-Signature";
     static final String TIMESTAMP = "X-Spool-Timestamp";
     static final String NODE_SECRET = "node-secret";
     static final String READER_SECRET = "reader-secret";
+    static final String DEPLOYER = "ana";
+    static final String DEPLOYER_SECRET = "ana-secret";
 
     private final MovableClock clock = new MovableClock();
     private final HttpClient client = HttpClient.newHttpClient();
     private NodeHttpServer server;
     private int port;
+    private Optional<HttpResponse<String>> last = Optional.empty();
 
     public void start(Duration heartbeatTimeout) throws IOException {
         port = freePort();
         server = new JdkNodeHttpServer(port);
         FirstIdentifying authenticator = new FirstIdentifying(List.of(provider("nodes", NODE_SECRET, "node"),
-                provider("readers", READER_SECRET, "cluster-reader")));
-        ClusterRoutes.of(new InMemoryClusterNodes(clock), new HeartbeatTimeout(heartbeatTimeout, clock), authenticator,
-                new ClusterRoles("node", "cluster-reader")).forEach(server::register);
+                provider("readers", READER_SECRET, "cluster-reader"), provider(DEPLOYER, DEPLOYER_SECRET, "deployer")));
+        ClusterRoutes.of(Cluster.inMemory(heartbeatTimeout, new DslDescriptorValidation(), clock), authenticator,
+                new ClusterRoles("node", "cluster-reader", "deployer")).forEach(server::register);
         server.start();
     }
 
@@ -55,7 +61,19 @@ public class ApiUnderTest {
         clock.advance(duration);
     }
 
+    /** Sends the request and keeps its answer as the last one. */
     public HttpResponse<String> send(String method, String path, String body, Optional<String> secret) throws Exception {
+        HttpResponse<String> response = query(method, path, body, secret);
+        last = Optional.of(response);
+        return response;
+    }
+
+    public HttpResponse<String> lastResponse() {
+        return last.orElseThrow(() -> new IllegalStateException("No step has sent a request yet"));
+    }
+
+    /** Sends the request without keeping its answer, to check what the API has. */
+    public HttpResponse<String> query(String method, String path, String body, Optional<String> secret) throws Exception {
         byte[] bytes = body.getBytes();
         HttpRequest.Builder request = HttpRequest.newBuilder(URI.create("http://localhost:" + port + path))
                 .method(method, bytes.length == 0 ? HttpRequest.BodyPublishers.noBody() : HttpRequest.BodyPublishers.ofByteArray(bytes));

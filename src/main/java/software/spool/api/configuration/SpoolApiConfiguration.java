@@ -39,7 +39,7 @@ public record SpoolApiConfiguration(int port, RequestAuthenticator authenticator
                 root.objectOrEmpty("server").optional("port", ValueParsers.INTEGER).orElse(DEFAULT_PORT),
                 authenticator(providers(root.object("authentication")), cluster),
                 cluster.optional("heartbeatTimeout", ValueParsers.DURATION).orElse(DEFAULT_HEARTBEAT_TIMEOUT),
-                new ClusterRoles(roles.string("node"), roles.string("read")));
+                new ClusterRoles(roles.string("node"), roles.string("read"), roles.string("deploy")));
     }
 
     private static RequestAuthenticators providers(DescriptorReader block) {

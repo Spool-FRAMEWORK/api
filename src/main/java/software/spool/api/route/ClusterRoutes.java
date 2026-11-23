@@ -1,25 +1,30 @@
 package software.spool.api.route;
 
-import software.spool.api.node.ClusterNodes;
-import software.spool.api.node.HeartbeatTimeout;
+import software.spool.api.Cluster;
 import software.spool.core.port.authentication.RequestAuthenticator;
 import software.spool.core.port.http.HttpRoute;
 import software.spool.core.port.http.RouteAccess;
 
 import java.util.List;
 
-/** The routes of the Spool API: nodes register and beat with the node role, and the list needs the read role. */
+/**
+ * The routes of the Spool API: nodes register and beat with the node role, the lists need the read role, and
+ * deploying and withdrawing need the deploy role.
+ */
 public final class ClusterRoutes {
     private ClusterRoutes() {}
 
-    public static List<HttpRoute> of(ClusterNodes nodes, HeartbeatTimeout timeout, RequestAuthenticator authenticator,
-                                     ClusterRoles roles) {
+    public static List<HttpRoute> of(Cluster cluster, RequestAuthenticator authenticator, ClusterRoles roles) {
         RouteAccess node = new RouteAccess.Protected(authenticator, roles.node());
         RouteAccess read = new RouteAccess.Protected(authenticator, roles.read());
+        RouteAccess deploy = new RouteAccess.Protected(authenticator, roles.deploy());
         return List.of(
-                new RegisterNodeRoute(nodes, timeout).route(node),
-                new NodeHeartbeatRoute(nodes).route(node),
-                new ListNodesRoute(nodes, timeout).route(read),
+                new RegisterNodeRoute(cluster.nodes(), cluster.timeout()).route(node),
+                new NodeHeartbeatRoute(cluster.nodes()).route(node),
+                new ListNodesRoute(cluster.nodes(), cluster.timeout()).route(read),
+                new DeployRoute(cluster.deployer()).route(deploy),
+                new ListDeploymentsRoute(cluster.deployments(), cluster.assigner()).route(read),
+                new WithdrawDeploymentRoute(cluster.deployer()).route(deploy),
                 new OpenApiRoute().route());
     }
 }

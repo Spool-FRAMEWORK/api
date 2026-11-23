@@ -4,8 +4,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
 import org.junit.jupiter.api.Test;
-import software.spool.api.node.HeartbeatTimeout;
-import software.spool.api.node.InMemoryClusterNodes;
+import software.spool.api.Cluster;
 import software.spool.core.port.authentication.Authentication;
 
 import java.io.IOException;
@@ -13,6 +12,7 @@ import java.time.Clock;
 import java.time.Duration;
 import java.util.HashSet;
 import java.util.Locale;
+import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -23,9 +23,9 @@ class ClusterRoutesContractTest {
 
     @Test
     void contract_listsEveryRegisteredRouteAndNoOther() throws IOException {
-        Set<String> registered = ClusterRoutes.of(new InMemoryClusterNodes(Clock.systemUTC()),
-                        new HeartbeatTimeout(Duration.ofSeconds(30), Clock.systemUTC()),
-                        request -> Authentication.rejected("nobody"), new ClusterRoles("node", "read"))
+        Cluster cluster = Cluster.inMemory(Duration.ofSeconds(30), descriptor -> Optional.empty(), Clock.systemUTC());
+        Set<String> registered = ClusterRoutes.of(cluster, request -> Authentication.rejected("nobody"),
+                        new ClusterRoles("node", "read", "deploy"))
                 .stream().map(route -> route.method() + " " + route.path()).collect(Collectors.toSet());
 
         assertThat(contractRoutes()).isEqualTo(registered);

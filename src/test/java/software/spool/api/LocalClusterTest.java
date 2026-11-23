@@ -61,7 +61,7 @@ class LocalClusterTest {
                 cluster:
                   authentication: [nodes, readers]
                   heartbeatTimeout: 5s
-                  roles: {node: node, read: cluster-reader}
+                  roles: {node: node, read: cluster-reader, deploy: deployer}
                 """.formatted(port, ClusterClient.SIGNATURE, ClusterClient.TIMESTAMP, NODE_SECRET,
                 ClusterClient.SIGNATURE, ClusterClient.TIMESTAMP, READER_SECRET));
     }

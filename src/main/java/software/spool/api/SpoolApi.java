@@ -1,8 +1,7 @@
 package software.spool.api;
 
 import software.spool.api.configuration.SpoolApiConfiguration;
-import software.spool.api.node.HeartbeatTimeout;
-import software.spool.api.node.InMemoryClusterNodes;
+import software.spool.api.deployment.DslDescriptorValidation;
 import software.spool.api.route.ClusterRoutes;
 import software.spool.core.adapter.http.JdkNodeHttpServer;
 import software.spool.core.port.http.NodeHttpServer;
@@ -23,8 +22,8 @@ public final class SpoolApi {
 
     public static SpoolApi start(SpoolApiConfiguration configuration, Clock clock) throws IOException {
         NodeHttpServer server = new JdkNodeHttpServer(configuration.port());
-        ClusterRoutes.of(new InMemoryClusterNodes(clock), new HeartbeatTimeout(configuration.heartbeatTimeout(), clock),
-                configuration.authenticator(), configuration.roles()).forEach(server::register);
+        Cluster cluster = Cluster.inMemory(configuration.heartbeatTimeout(), new DslDescriptorValidation(), clock);
+        ClusterRoutes.of(cluster, configuration.authenticator(), configuration.roles()).forEach(server::register);
         server.start();
         return new SpoolApi(server);
     }

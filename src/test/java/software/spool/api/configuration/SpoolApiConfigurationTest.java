@@ -22,7 +22,7 @@ class SpoolApiConfigurationTest {
             cluster:
               authentication: [nodes]
               heartbeatTimeout: 45s
-              roles: {node: node, read: cluster-reader}
+              roles: {node: node, read: cluster-reader, deploy: deployer}
             """;
 
     @TempDir
@@ -35,7 +35,7 @@ class SpoolApiConfigurationTest {
 
         assertThat(configuration.port()).isEqualTo(9191);
         assertThat(configuration.heartbeatTimeout()).isEqualTo(Duration.ofSeconds(45));
-        assertThat(configuration.roles()).isEqualTo(new ClusterRoles("node", "cluster-reader"));
+        assertThat(configuration.roles()).isEqualTo(new ClusterRoles("node", "cluster-reader", "deployer"));
     }
 
     @Test
@@ -50,7 +50,7 @@ class SpoolApiConfigurationTest {
 
     @Test
     void read_withoutRoles_saysTheyAreRequired() throws IOException {
-        Path file = write(CONFIGURATION.replace("  roles: {node: node, read: cluster-reader}\n", ""));
+        Path file = write(CONFIGURATION.replace("  roles: {node: node, read: cluster-reader, deploy: deployer}\n", ""));
 
         assertThatThrownBy(() -> SpoolApiConfiguration.read(file, Map.of("SPOOL_CLUSTER_SECRET", "a-secret")::get))
                 .isInstanceOf(InvalidDescriptorException.class)
