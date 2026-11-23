@@ -3,13 +3,16 @@ info:
   title: Spool API
   version: 1.0.0
   description: |
-    Manages a cluster of Spool nodes (ADR-022). A node registers with its id and its address and then sends
-    heartbeats; one whose last heartbeat is older than the heartbeat timeout is down. Every route but this contract
-    needs a caller identified by one of the providers of the authentication block (ADR-013), with the role the route
-    asks for: a caller nobody can identify gets 401, and one without the role 403.
+    Manages a cluster of Spool nodes. A node registers with its id and its address and then sends heartbeats; one
+    whose last heartbeat is older than the heartbeat timeout is down. Every route but this contract needs a caller
+    identified by one of the providers of the authentication block of the API, such as HMAC_SIGNATURE or OIDC, with
+    the role the route asks for: a caller nobody can identify gets 401, and one without the role 403.
   license:
     name: AGPL-3.0-only
     url: https://www.gnu.org/licenses/agpl-3.0.txt
+servers:
+  - url: http://localhost:8090
+    description: The Spool API on this machine, on the default port of server.port
 paths:
   /spool/cluster/nodes:
     post:
