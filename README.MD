@@ -3,11 +3,12 @@
 [![License](https://img.shields.io/badge/License-AGPL%203.0-blue.svg)](LICENSE)
 [![Java](https://img.shields.io/badge/Java-21%2B-orange.svg)](https://openjdk.org/)
 
-The **Spool API** manages a cluster of Spool nodes and is the single entry point to operate it. Today the nodes
-register in it, send heartbeats and are listed with their state; assigning them modules and deploying descriptors come
-next.
+The **Spool API** manages a cluster of Spool nodes and is the single entry point to operate it. The nodes register in
+it and send heartbeats; a descriptor sent to it is deployed whole on the live node with the fewest deployments, and
+moves to another live node when its node goes down.
 
-Decided in [ADR-022](https://linear.app/javier-castilla/document/adr-022-un-servicio-propio-la-api-de-spool-gestiona-un-cluster-de-e242fb8039c3).
+Decided in [ADR-022](https://linear.app/javier-castilla/document/adr-022-un-servicio-propio-la-api-de-spool-gestiona-un-cluster-de-e242fb8039c3)
+and [ADR-031](https://linear.app/javier-castilla/document/adr-031-la-api-asigna-cada-despliegue-entero-a-un-nodo-y-el-nodo-544c4722ba57).
 
 > Requires **Java 21+**.
 
@@ -23,11 +24,25 @@ open to anyone, at `GET /spool/openapi.yaml`. A test keeps it equal to the route
 | `POST /spool/cluster/nodes` | node | Registers a node, `{"id": "node-a", "address": "http://10.0.0.1:8080"}`, or registers it again with a new address |
 | `PUT /spool/cluster/nodes/{id}/heartbeat` | node | Says that a registered node is alive; `404` if it never registered |
 | `GET /spool/cluster/nodes` | read | Every node with its address, its state, `UP` or `DOWN`, and its last heartbeat |
+| `GET /spool/cluster/nodes/{id}/assignments` | node | The deployments of the node, each with its version and descriptor, and its lease in seconds |
+| `PUT /spool/cluster/nodes/{id}/assignments/{name}` | node | The node says a deployment runs, `{"version": 1, "state": "RUNNING"}`, or failed, with `"state": "FAILED"` and an `error` |
+| `PUT /spool/deployments/{name}` | deploy | Deploys the YAML descriptor of the body under the name: `201` when new, `200` for a new version of it, `400` with the error of the DSL |
+| `GET /spool/deployments` | read | Every deployment with its owner, version, node and state: `WAITING`, `STARTING`, `RUNNING` or `FAILED` with its error |
+| `DELETE /spool/deployments/{name}` | deploy | Withdraws a deployment, so its node stops it |
 | `GET /spool/openapi.yaml` | none | The contract |
 
 A node whose last heartbeat is older than the heartbeat timeout is `DOWN`. A caller no provider can identify gets
-`401`, and one without the role `403` (ADR-013). The nodes are kept in memory: when the API restarts, each node
-registers again on its next start.
+`401`, and one without the role `403` (ADR-013).
+
+A deployment goes whole to one node, so modules that share a piece of the process, such as an `IN_MEMORY` bus, stay
+together. A new version stays on its node. A deployment with no live node waits for the first one that asks for its
+assignments, and one on a node that is down moves to another live node; it starts there from what its infrastructure
+keeps, and what was only in memory is done again. One that failed to start stays on its node until a new version is
+sent or the node goes down. The API checks a descriptor as a node loads it, without building it; what only building
+finds, such as a type without a plugin, the node reports as `FAILED`. Its `${env:NAME}` are read in the node.
+
+Nodes and deployments are kept in memory: when the API restarts it forgets the deployments, and the nodes stop them
+once their lease passes. Until there is a store that lasts, it is for development.
 
 ---
 
@@ -47,7 +62,7 @@ authentication:                            # providers as in a descriptor (ADR-0
 cluster:
   authentication: [nodes, people]          # the first one that identifies the caller wins
   heartbeatTimeout: 30s                    # 30s by default
-  roles: {node: node, read: cluster-reader}
+  roles: {node: node, read: cluster-reader, deploy: deployer}
 ```
 
 The nodes sign with the headers `X-Spool-Signature` and `X-Spool-Timestamp`, so their provider declares those two
@@ -82,4 +97,17 @@ and the secret of the cluster.
    ]}
    ```
 
-Stop one node and, after the heartbeat timeout, it is listed `DOWN`. `LocalClusterTest` runs this same cluster.
+Stop one node and, after the heartbeat timeout, it is listed `DOWN`.
+
+4. Deploy a descriptor with a caller that has the deploy role, for example a third `HMAC_SIGNATURE` provider with
+   `roles: deployer`:
+
+   ```sh
+   curl -X PUT http://localhost:8090/spool/deployments/orders -H "Content-Type: application/yaml" \
+     --data-binary @orders.spool.yaml   # plus the signature headers of the provider
+   ```
+
+   `GET /spool/deployments` lists it on one of the two nodes, `RUNNING` once the node started it. Stop that node and,
+   after the heartbeat timeout, it moves to the other one. `DELETE /spool/deployments/orders` stops it.
+
+`LocalClusterTest` runs this same cluster, from registering to withdrawing a deployment.
