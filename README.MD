@@ -26,7 +26,7 @@ open to anyone, at `GET /spool/openapi.yaml`. A test keeps it equal to the route
 | `GET /spool/cluster/nodes` | read | Every node with its address, its state, `UP` or `DOWN`, and its last heartbeat |
 | `GET /spool/cluster/nodes/{id}/assignments` | node | The deployments of the node, each with its version and descriptor, and its lease in seconds |
 | `PUT /spool/cluster/nodes/{id}/assignments/{name}` | node | The node says a deployment runs, `{"version": 1, "state": "RUNNING"}`, or failed, with `"state": "FAILED"` and an `error` |
-| `PUT /spool/deployments/{name}` | deploy | Deploys the YAML descriptor of the body under the name: `201` when new, `200` for a new version of it, `400` with the error of the DSL |
+| `PUT /spool/deployments/{name}` | deploy | Deploys a pipeline under the name: as JSON, `{"main": "orders.spool.yaml", "files": {...}}` with every file by its path relative to the main one, or as the YAML of a single file. `201` when new, `200` for a new version of it, `400` with the error of the DSL or a path that leaves the pipeline |
 | `GET /spool/deployments` | read | Every deployment with its owner, version, node and state: `WAITING`, `STARTING`, `RUNNING` or `FAILED` with its error |
 | `DELETE /spool/deployments/{name}` | deploy | Withdraws a deployment, so its node stops it |
 | `GET /spool/openapi.yaml` | none | The contract |
