@@ -29,6 +29,13 @@ open to anyone, at `GET /spool/openapi.yaml`. A test keeps it equal to the route
 | `PUT /spool/deployments/{name}` | deploy | Deploys a pipeline under the name: as JSON, `{"main": "orders.spool.yaml", "files": {...}}` with every file by its path relative to the main one, or as the YAML of a single file. `201` when new, `200` for a new version of it, `400` with the error of the DSL or a path that leaves the pipeline |
 | `GET /spool/deployments` | read | Every deployment with its owner, version, node and state: `WAITING`, `STARTING`, `RUNNING` or `FAILED` with its error |
 | `DELETE /spool/deployments/{name}` | deploy | Withdraws a deployment, so its node stops it |
+| `PUT /spool/systems/{system}` | deploy | Creates a system, or gives it its shared files, `{"files": {"shared/infrastructure.yaml": "..."}}`. The pipelines that read a file that changes get a new version, and only they |
+| `GET /spool/systems` | read | Every system with its shared files and its pipelines, their node, version and state |
+| `GET /spool/systems/{system}` | read | One system, with the text of its shared files |
+| `DELETE /spool/systems/{system}` | deploy | Withdraws the system and every pipeline of it |
+| `PUT /spool/systems/{system}/pipelines/{pipeline}` | deploy | Deploys a pipeline in the system, as `{"main", "files"}` or a YAML; an include it does not send is looked up among the shared files |
+| `GET /spool/systems/{system}/pipelines/{pipeline}` | read | A pipeline with its files as they were sent and the shared files it reads |
+| `DELETE /spool/systems/{system}/pipelines/{pipeline}` | deploy | Withdraws a pipeline of the system |
 | `GET /spool/openapi.yaml` | none | The contract |
 
 A node whose last heartbeat is older than the heartbeat timeout is `DOWN`. A caller no provider can identify gets
