@@ -5,6 +5,7 @@ import software.spool.core.port.authentication.RequestAuthenticator;
 import software.spool.core.port.http.HttpRoute;
 import software.spool.core.port.http.RouteAccess;
 
+import java.util.ArrayList;
 import java.util.List;
 
 /**
@@ -19,16 +20,19 @@ public final class ClusterRoutes {
         RouteAccess node = new RouteAccess.Protected(authenticator, roles.node());
         RouteAccess read = new RouteAccess.Protected(authenticator, roles.read());
         RouteAccess deploy = new RouteAccess.Protected(authenticator, roles.deploy());
-        return List.of(
+        List<HttpRoute> routes = new ArrayList<>(List.of(
                 new RegisterNodeRoute(cluster.nodes(), cluster.timeout()).route(node),
                 new NodeHeartbeatRoute(cluster.nodes()).route(node),
-                new NodeAssignmentsRoute(cluster.nodes(), cluster.timeout(), cluster.deployments(), cluster.assigner())
+                new NodeAssignmentsRoute(cluster.nodes(), cluster.timeout(), cluster.deployments(), cluster.assigner(),
+                        cluster.effectiveFiles())
                         .route(node),
                 new ReportAssignmentRoute(cluster.reports()).route(node),
                 new ListNodesRoute(cluster.nodes(), cluster.timeout()).route(read),
                 new DeployRoute(cluster.deployer()).route(deploy),
                 new ListDeploymentsRoute(cluster.deployments(), cluster.assigner()).route(read),
                 new WithdrawDeploymentRoute(cluster.deployer()).route(deploy),
-                new OpenApiRoute().route());
+                new OpenApiRoute().route()));
+        routes.addAll(new SystemRoutes(cluster.systems(), cluster.systemDeployer(), cluster.assigner()).routes(read, deploy));
+        return List.copyOf(routes);
     }
 }

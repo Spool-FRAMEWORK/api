@@ -221,6 +221,204 @@ paths:
           $ref: '#/components/responses/Unauthenticated'
         '403':
           $ref: '#/components/responses/Forbidden'
+  /spool/systems:
+    get:
+      summary: List the systems, each with its shared files and its pipelines
+      description: Needs the read role. Before answering, the assignments are brought up to date with the live nodes.
+      operationId: listSystems
+      responses:
+        '200':
+          description: Every system, in the order they were created
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [systems]
+                properties:
+                  systems:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/System'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+  /spool/systems/{system}:
+    put:
+      summary: Create a system, or give it its shared files
+      description: >
+        Needs the deploy role. The pipelines that read a shared file that changes get a new version, and only they;
+        if one of them would stop loading, nothing changes and the answer is 400.
+      operationId: putSystem
+      parameters:
+        - $ref: '#/components/parameters/SystemName'
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                files:
+                  type: object
+                  description: Every shared file by its path; no path may leave the system
+                  additionalProperties:
+                    type: string
+      responses:
+        '201':
+          description: The new system
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/System'
+        '200':
+          description: The system with its new shared files
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/System'
+        '400':
+          $ref: '#/components/responses/Error'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+    get:
+      summary: A system, with its shared files and its pipelines
+      description: Needs the read role.
+      operationId: getSystem
+      parameters:
+        - $ref: '#/components/parameters/SystemName'
+      responses:
+        '200':
+          description: The system
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/System'
+        '404':
+          $ref: '#/components/responses/Error'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+    delete:
+      summary: Withdraw a system and every pipeline of it
+      description: Needs the deploy role.
+      operationId: withdrawSystem
+      parameters:
+        - $ref: '#/components/parameters/SystemName'
+      responses:
+        '204':
+          description: The system and its pipelines were withdrawn
+        '404':
+          $ref: '#/components/responses/Error'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+  /spool/systems/{system}/pipelines/{pipeline}:
+    put:
+      summary: Deploy a pipeline in a system, or a new version of it
+      description: >
+        Needs the deploy role. An include the pipeline does not send is looked up among the files its system shares;
+        a pipeline cannot send a file with the path of a shared one.
+      operationId: putPipeline
+      parameters:
+        - $ref: '#/components/parameters/SystemName'
+        - $ref: '#/components/parameters/PipelineName'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PipelineFiles'
+          application/yaml:
+            schema:
+              type: string
+      responses:
+        '201':
+          description: The new pipeline
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PipelineInSystem'
+        '200':
+          description: The pipeline, in its new version
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PipelineInSystem'
+        '400':
+          $ref: '#/components/responses/Error'
+        '404':
+          $ref: '#/components/responses/Error'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+    get:
+      summary: A pipeline with its files, as they were sent, and the shared files it reads
+      description: Needs the read role.
+      operationId: getPipeline
+      parameters:
+        - $ref: '#/components/parameters/SystemName'
+        - $ref: '#/components/parameters/PipelineName'
+      responses:
+        '200':
+          description: The pipeline and its files
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [name, system, version, state, main, files, sharedFilesUsed]
+                properties:
+                  name:
+                    type: string
+                  system:
+                    type: string
+                  owner:
+                    type: string
+                  version:
+                    type: integer
+                  state:
+                    type: string
+                    enum: [WAITING, STARTING, RUNNING, FAILED]
+                  node:
+                    type: [string, 'null']
+                  error:
+                    type: [string, 'null']
+                  main:
+                    type: string
+                  files:
+                    type: object
+                    additionalProperties:
+                      type: string
+                  sharedFilesUsed:
+                    type: array
+                    items:
+                      type: string
+        '404':
+          $ref: '#/components/responses/Error'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+    delete:
+      summary: Withdraw a pipeline of a system
+      description: Needs the deploy role.
+      operationId: withdrawPipeline
+      parameters:
+        - $ref: '#/components/parameters/SystemName'
+        - $ref: '#/components/parameters/PipelineName'
+      responses:
+        '204':
+          description: The pipeline was withdrawn
+        '404':
+          $ref: '#/components/responses/Error'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
   /spool/openapi.yaml:
     get:
       summary: This contract
@@ -302,6 +500,43 @@ components:
         error:
           type: string
           description: Why it failed to start; required when the state is FAILED
+    System:
+      type: object
+      required: [name, owner, ownerProvider, sharedFiles, pipelines]
+      properties:
+        name:
+          type: string
+          example: boe
+        owner:
+          type: string
+        ownerProvider:
+          type: string
+        sharedFiles:
+          type: object
+          description: The files the system shares, by their path, with their text
+          additionalProperties:
+            type: string
+        pipelines:
+          type: array
+          items:
+            $ref: '#/components/schemas/PipelineInSystem'
+    PipelineInSystem:
+      type: object
+      required: [name, version, state]
+      properties:
+        name:
+          type: string
+          example: boe-crawler
+        version:
+          type: integer
+          minimum: 1
+        state:
+          type: string
+          enum: [WAITING, STARTING, RUNNING, FAILED]
+        node:
+          type: [string, 'null']
+        error:
+          type: [string, 'null']
     Deployment:
       type: object
       required: [name, owner, ownerProvider, version, state]
@@ -342,6 +577,22 @@ components:
       description: The id of the node
       schema:
         type: string
+    SystemName:
+      name: system
+      in: path
+      required: true
+      description: The name of the system, in lower-case letters, digits and hyphens
+      schema:
+        type: string
+        pattern: '^[a-z0-9]+(-[a-z0-9]+)*$'
+    PipelineName:
+      name: pipeline
+      in: path
+      required: true
+      description: The name of the pipeline, in lower-case letters, digits and hyphens
+      schema:
+        type: string
+        pattern: '^[a-z0-9]+(-[a-z0-9]+)*$'
     DeploymentName:
       name: name
       in: path

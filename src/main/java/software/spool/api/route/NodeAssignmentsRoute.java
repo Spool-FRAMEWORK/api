@@ -3,6 +3,8 @@ package software.spool.api.route;
 import software.spool.api.deployment.Deployment;
 import software.spool.api.deployment.DeploymentAssigner;
 import software.spool.api.deployment.Deployments;
+import software.spool.api.deployment.EffectiveFiles;
+import software.spool.api.deployment.PipelineFiles;
 import software.spool.api.node.ClusterNodes;
 import software.spool.api.node.HeartbeatTimeout;
 import software.spool.core.port.http.Caller;
@@ -18,7 +20,7 @@ import java.util.Map;
 
 /**
  * {@code GET /spool/cluster/nodes/{id}/assignments}: the deployments assigned to a node, each with its version and
- * its files, after bringing the assignments up to date, and for how long the node may keep running them without
+ * its files, with the ones its system shares, after bringing the assignments up to date, and for how long the node may keep running them without
  * the API: the heartbeat timeout (ADR-031).
  */
 final class NodeAssignmentsRoute implements HttpRouteHandler {
@@ -29,8 +31,11 @@ final class NodeAssignmentsRoute implements HttpRouteHandler {
     private final HeartbeatTimeout timeout;
     private final Deployments deployments;
     private final DeploymentAssigner assigner;
+    private final EffectiveFiles effectiveFiles;
 
-    NodeAssignmentsRoute(ClusterNodes nodes, HeartbeatTimeout timeout, Deployments deployments, DeploymentAssigner assigner) {
+    NodeAssignmentsRoute(ClusterNodes nodes, HeartbeatTimeout timeout, Deployments deployments, DeploymentAssigner assigner,
+                         EffectiveFiles effectiveFiles) {
+        this.effectiveFiles = effectiveFiles;
         this.nodes = nodes;
         this.timeout = timeout;
         this.deployments = deployments;
@@ -48,7 +53,7 @@ final class NodeAssignmentsRoute implements HttpRouteHandler {
             return Responses.error(404, id + " is not registered: register it with POST " + RegisterNodeRoute.PATH);
         assigner.assign();
         List<AssignmentPayload> assigned = deployments.all().stream().filter(deployment -> deployment.isOn(id))
-                .map(AssignmentPayload::of).toList();
+                .map(deployment -> AssignmentPayload.of(deployment, effectiveFiles.of(deployment))).toList();
         return Responses.json(200, new AssignmentsPayload(timeout.duration().toSeconds(), assigned));
     }
 
@@ -56,9 +61,8 @@ final class NodeAssignmentsRoute implements HttpRouteHandler {
     }
 
     record AssignmentPayload(String name, int version, String main, Map<String, String> files) {
-        static AssignmentPayload of(Deployment deployment) {
-            return new AssignmentPayload(deployment.name(), deployment.version(), deployment.files().main(),
-                    deployment.files().files());
+        static AssignmentPayload of(Deployment deployment, PipelineFiles files) {
+            return new AssignmentPayload(deployment.id(), deployment.version(), files.main(), files.files());
         }
     }
 }

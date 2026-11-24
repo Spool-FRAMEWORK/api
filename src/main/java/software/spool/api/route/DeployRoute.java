@@ -54,7 +54,8 @@ final class DeployRoute implements HttpRouteHandler {
         };
     }
 
-    private static Optional<PipelineFiles> filesOf(String name, HttpRequest request) {
+    /** The pipeline of the body: a JSON of its files, or the YAML of a single file named after it. */
+    static Optional<PipelineFiles> filesOf(String name, HttpRequest request) {
         if (!isJson(request)) return Optional.of(PipelineFiles.single(name, new String(request.body(), StandardCharsets.UTF_8)));
         try {
             FilesBody body = PayloadDeserializerFactory.json().as(FilesBody.class).deserialize(request.body());
