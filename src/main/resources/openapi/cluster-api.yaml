@@ -144,8 +144,8 @@ paths:
     get:
       summary: List the deployments with the node each runs on
       description: >
-        Needs the read role. Before answering, a deployment without a node, or on a node that is down, goes to the
-        live node with the fewest deployments.
+        Needs the read role. Before answering, a deployment without a node, on a node that is down, or on a node that
+        no longer has every label it asks for, goes to the live node with those labels and the fewest deployments.
       operationId: listDeployments
       responses:
         '200':
@@ -170,20 +170,21 @@ paths:
       description: >
         Needs the deploy role. The descriptor is checked as a node would load it, and each module must have the pieces
         it needs; what only building finds, such as a type without a plugin, the node reports. It goes whole to the
-        live node with the fewest deployments, or waits for one; a new version stays on its node. Its ${env:NAME} are
-        read in the node.
+        live node with every label it asks for and the fewest deployments, or waits for one (ADR-036); a new version
+        stays on its node while that node has its labels. Its ${env:NAME} are read in the node.
       operationId: deploy
       parameters:
         - $ref: '#/components/parameters/DeploymentName'
       requestBody:
         required: true
         description: >
-          The pipeline: as JSON, its main file and every other file by its path relative to the main one (ADR-036);
-          as YAML, a pipeline of one file, named after the deployment
+          The pipeline: as JSON, its main file, every other file by its path relative to the main one, and the
+          labels a node needs to run it (ADR-036); as YAML, a pipeline of one file, named after the deployment, that
+          asks for no labels
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/PipelineFiles'
+              $ref: '#/components/schemas/DeploymentRequest'
           application/yaml:
             schema:
               type: string
@@ -432,6 +433,13 @@ paths:
             application/yaml: {}
 components:
   schemas:
+    Labels:
+      type: array
+      description: Labels of a node, each written as key=value, both parts not empty and a key with one value (ADR-036)
+      items:
+        type: string
+        pattern: '^[^=,\s]+=[^=,\s]+$'
+        example: cloud=aws
     Registration:
       type: object
       required: [id, address]
@@ -443,15 +451,19 @@ components:
           type: string
           format: uri
           example: http://10.0.0.1:8080
+        labels:
+          $ref: '#/components/schemas/Labels'
     Node:
       type: object
-      required: [id, address, state, lastHeartbeat]
+      required: [id, address, labels, state, lastHeartbeat]
       properties:
         id:
           type: string
         address:
           type: string
           format: uri
+        labels:
+          $ref: '#/components/schemas/Labels'
         state:
           type: string
           enum: [UP, DOWN]
@@ -487,6 +499,13 @@ components:
           description: Every file by its path relative to the main one, the main one included; no path may leave the pipeline
           additionalProperties:
             type: string
+    DeploymentRequest:
+      allOf:
+        - $ref: '#/components/schemas/PipelineFiles'
+        - type: object
+          properties:
+            labels:
+              $ref: '#/components/schemas/Labels'
     AssignmentReport:
       type: object
       required: [version, state]
@@ -539,7 +558,7 @@ components:
           type: [string, 'null']
     Deployment:
       type: object
-      required: [name, owner, ownerProvider, version, state]
+      required: [name, owner, ownerProvider, version, labels, state]
       properties:
         name:
           type: string
@@ -553,10 +572,12 @@ components:
         version:
           type: integer
           minimum: 1
+        labels:
+          $ref: '#/components/schemas/Labels'
         state:
           type: string
           enum: [WAITING, STARTING, RUNNING, FAILED]
-          description: WAITING while no live node can take it; otherwise what its node said of it
+          description: WAITING while no live node with its labels can take it; otherwise what its node said of it
         node:
           type: [string, 'null']
           description: The node it is assigned to, null while it waits

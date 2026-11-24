@@ -4,8 +4,10 @@
 [![Java](https://img.shields.io/badge/Java-21%2B-orange.svg)](https://openjdk.org/)
 
 The **Spool API** manages a cluster of Spool nodes and is the single entry point to operate it. The nodes register in
-it and send heartbeats; a descriptor sent to it is deployed whole on the live node with the fewest deployments, and
-moves to another live node when its node goes down.
+it and send heartbeats, each with its labels, such as `cloud=aws`; a descriptor sent to it is deployed whole on the
+live node with every label it asks for and the fewest deployments, and moves to another live node with those labels
+when its node goes down or no longer has them. A deployment that no live node with its labels can take waits, and the
+API lists it as `WAITING` with the labels it needs (ADR-036).
 
 Decided in [ADR-022](https://linear.app/javier-castilla/document/adr-022-un-servicio-propio-la-api-de-spool-gestiona-un-cluster-de-e242fb8039c3)
 and [ADR-031](https://linear.app/javier-castilla/document/adr-031-la-api-asigna-cada-despliegue-entero-a-un-nodo-y-el-nodo-544c4722ba57).
