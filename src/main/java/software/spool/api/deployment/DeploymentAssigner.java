@@ -6,12 +6,14 @@ import software.spool.api.node.HeartbeatTimeout;
 import software.spool.api.node.NodeState;
 
 import java.util.List;
-import java.util.Set;
+import java.util.Map;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 /**
- * Brings the assignments up to date with the live nodes: a deployment without a node, or on a node that is down, goes
- * to the live node the placement picks, one after the other, so each choice sees the ones before it (ADR-031).
+ * Brings the assignments up to date with the live nodes: a deployment without a node, on a node that is down, or on a
+ * node that no longer has every label it asks for, goes to the live node the placement picks, one after the other, so
+ * each choice sees the ones before it (ADR-031, ADR-036).
  */
 public final class DeploymentAssigner {
     private final Deployments deployments;
@@ -28,18 +30,17 @@ public final class DeploymentAssigner {
     }
 
     public synchronized void assign() {
-        Set<String> live = liveNodes();
+        Map<String, ClusterNode> live = liveNodes();
         for (Deployment deployment : deployments.all()) {
-            if (deployment.node().filter(live::contains).isPresent()) continue;
+            if (deployment.node().map(live::get).filter(node -> node.has(deployment.labels())).isPresent()) continue;
             List<Deployment> current = deployments.all();
-            deployments.save(deployment.assignedTo(placement.nodeFor(live, current)));
+            deployments.save(deployment.assignedTo(placement.nodeFor(deployment, live.values(), current)));
         }
     }
 
-    private Set<String> liveNodes() {
+    private Map<String, ClusterNode> liveNodes() {
         return nodes.all().stream()
                 .filter(node -> timeout.stateOf(node) == NodeState.UP)
-                .map(ClusterNode::id)
-                .collect(Collectors.toSet());
+                .collect(Collectors.toMap(ClusterNode::id, Function.identity()));
     }
 }

@@ -202,7 +202,7 @@ public class DeploymentSteps {
         return StreamSupport.stream(JSON.readTree(list.body()).get("deployments").spliterator(), false).toList();
     }
 
-    private static String descriptorOf(String deployment) {
+    static String descriptorOf(String deployment) {
         return DESCRIPTOR.formatted(deployment, deployment, deployment);
     }
 }

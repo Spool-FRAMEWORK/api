@@ -1,5 +1,7 @@
 package software.spool.api.deployment;
 
+import software.spool.core.model.spool.NodeLabels;
+
 import java.util.Optional;
 
 /**
@@ -17,12 +19,13 @@ public final class Deployer {
         this.assigner = assigner;
     }
 
-    public Outcome deploy(String name, PipelineFiles files, DeploymentOwner sender) {
+    /** Deploys the files under the name, asking for a node with every one of {@code labels} (ADR-036). */
+    public Outcome deploy(String name, PipelineFiles files, NodeLabels labels, DeploymentOwner sender) {
         Optional<String> problem = files.problemWithThePaths().or(() -> validation.problemOf(files));
         if (problem.isPresent()) return new Outcome.Invalid(problem.get());
         Optional<Deployment> existing = deployments.find(name);
-        deployments.save(existing.map(current -> current.replacedBy(sender, files))
-                .orElseGet(() -> Deployment.first(name, sender, files)));
+        deployments.save(existing.map(current -> current.replacedBy(sender, files, labels))
+                .orElseGet(() -> Deployment.first(Optional.empty(), name, sender, files, labels)));
         assigner.assign();
         return new Outcome.Deployed(deployments.find(name).orElseThrow(), existing.isEmpty());
     }

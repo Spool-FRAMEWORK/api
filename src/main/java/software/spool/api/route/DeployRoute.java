@@ -4,6 +4,7 @@ import software.spool.api.deployment.Deployer;
 import software.spool.api.deployment.DeploymentOwner;
 import software.spool.api.deployment.PipelineFiles;
 import software.spool.core.adapter.jackson.PayloadDeserializerFactory;
+import software.spool.core.model.spool.NodeLabels;
 import software.spool.core.port.http.Caller;
 import software.spool.core.port.http.HttpMethod;
 import software.spool.core.port.http.HttpRequest;
@@ -13,6 +14,7 @@ import software.spool.core.port.http.HttpRouteHandler;
 import software.spool.core.port.http.RouteAccess;
 
 import java.nio.charset.StandardCharsets;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
@@ -20,8 +22,8 @@ import java.util.Optional;
 /**
  * {@code PUT /spool/deployments/{name}}: deploys a pipeline under the name, {@code 201} when it is new and {@code 200}
  * when it replaces the one with that name, or {@code 400} with what is wrong. A JSON body gives the main file and every
- * other file by its path, {@code {"main": "orders.spool.yaml", "files": {...}}} (ADR-036); any other body is the YAML
- * of a pipeline of one file.
+ * other file by its path, {@code {"main": "orders.spool.yaml", "files": {...}}} (ADR-036), and may give the labels a
+ * node needs to run it, {@code "labels": ["cloud=aws"]}; any other body is the YAML of a pipeline of one file.
  */
 final class DeployRoute implements HttpRouteHandler {
     static final String PATH = "/spool/deployments/{name}";
@@ -47,7 +49,13 @@ final class DeployRoute implements HttpRouteHandler {
         Optional<PipelineFiles> files = filesOf(name, request);
         if (files.isEmpty())
             return Responses.error(400, "A JSON body must be {\"main\": \"orders.spool.yaml\", \"files\": {\"orders.spool.yaml\": \"...\"}}");
-        return switch (deployer.deploy(name, files.get(), sender)) {
+        NodeLabels labels;
+        try {
+            labels = labelsOf(request);
+        } catch (IllegalArgumentException badLabel) {
+            return Responses.error(400, badLabel.getMessage());
+        }
+        return switch (deployer.deploy(name, files.get(), labels, sender)) {
             case Deployer.Outcome.Invalid invalid -> Responses.error(400, invalid.problem());
             case Deployer.Outcome.Deployed deployed ->
                     Responses.json(deployed.isNew() ? 201 : 200, DeploymentPayload.of(deployed.deployment()));
@@ -66,10 +74,27 @@ final class DeployRoute implements HttpRouteHandler {
         }
     }
 
+    /**
+     * The labels a node needs to run the pipeline, from the {@code labels} of a JSON body, each written as
+     * {@code key=value}; none for a YAML body or a JSON body without them.
+     *
+     * @throws IllegalArgumentException if a label is not written as {@code key=value}
+     */
+    static NodeLabels labelsOf(HttpRequest request) {
+        if (!isJson(request)) return NodeLabels.none();
+        Optional<List<String>> labels;
+        try {
+            labels = Optional.ofNullable(PayloadDeserializerFactory.json().as(FilesBody.class).deserialize(request.body()).labels());
+        } catch (RuntimeException invalid) {
+            return NodeLabels.none();
+        }
+        return labels.map(NodeLabels::of).orElse(NodeLabels.none());
+    }
+
     private static boolean isJson(HttpRequest request) {
         return request.header(CONTENT_TYPE).filter(type -> type.toLowerCase(Locale.ROOT).startsWith(JSON)).isPresent();
     }
 
-    record FilesBody(String main, Map<String, String> files) {
+    record FilesBody(String main, Map<String, String> files, List<String> labels) {
     }
 }
