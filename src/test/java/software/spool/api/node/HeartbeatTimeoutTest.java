@@ -1,5 +1,6 @@
 package software.spool.api.node;
 
+import software.spool.core.model.spool.NodeLabels;
 import org.junit.jupiter.api.Test;
 
 import java.net.URI;
@@ -11,7 +12,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 class HeartbeatTimeoutTest {
     private final MovableClock clock = new MovableClock();
     private final HeartbeatTimeout timeout = new HeartbeatTimeout(Duration.ofSeconds(30), clock);
-    private final ClusterNode node = new ClusterNode("node-a", URI.create("http://10.0.0.1:8080"), clock.instant());
+    private final ClusterNode node = new ClusterNode("node-a", URI.create("http://10.0.0.1:8080"), NodeLabels.none(), clock.instant());
 
     @Test
     void stateOf_heartbeatExactlyAsOldAsTheTimeout_isUp() {

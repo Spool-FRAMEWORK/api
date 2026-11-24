@@ -1,5 +1,7 @@
 package software.spool.api.node;
 
+import software.spool.core.model.spool.NodeLabels;
+
 import java.net.URI;
 import java.util.List;
 import java.util.Optional;
@@ -9,8 +11,8 @@ import java.util.Optional;
  * have replicas, without changing its model (ADR-022).
  */
 public interface ClusterNodes {
-    /** Registers a node, or registers it again with a new address, as alive now. */
-    ClusterNode register(String id, URI address);
+    /** Registers a node, or registers it again with a new address and new labels, as alive now. */
+    ClusterNode register(String id, URI address, NodeLabels labels);
 
     /** Notes that a node is alive now, or gives nothing when it never registered. */
     Optional<ClusterNode> beat(String id);

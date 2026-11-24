@@ -1,5 +1,7 @@
 package software.spool.api.node;
 
+import software.spool.core.model.spool.NodeLabels;
+
 import java.net.URI;
 import java.time.Clock;
 import java.util.LinkedHashMap;
@@ -18,8 +20,8 @@ public final class InMemoryClusterNodes implements ClusterNodes {
     }
 
     @Override
-    public synchronized ClusterNode register(String id, URI address) {
-        ClusterNode node = new ClusterNode(id, address, clock.instant());
+    public synchronized ClusterNode register(String id, URI address, NodeLabels labels) {
+        ClusterNode node = new ClusterNode(id, address, labels, clock.instant());
         byId.put(id, node);
         return node;
     }
