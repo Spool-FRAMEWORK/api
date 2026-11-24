@@ -1,6 +1,6 @@
 package software.spool.api.deployment;
 
-import java.net.URI;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
@@ -26,13 +26,13 @@ public record PipelineFiles(String main, Map<String, String> files) {
     /** What is wrong with the paths, if anything: the main file is missing, or a path leaves the pipeline. */
     public Optional<String> problemWithThePaths() {
         if (!files.containsKey(main)) return Optional.of("The main file " + main + " is not among the files sent");
-        return files.keySet().stream().filter(path -> !insideThePipeline(path)).sorted().findFirst()
-                .map(path -> "The path " + path + " leaves the pipeline: give each file by its path relative to the main one");
+        return PipelinePaths.problemOf(files.keySet());
     }
 
-    private static boolean insideThePipeline(String path) {
-        if (path.isBlank() || path.startsWith("/") || path.startsWith("\\") || path.contains(":")) return false;
-        String normalized = URI.create(path.replace('\\', '/')).normalize().toString();
-        return !normalized.startsWith("../") && !normalized.equals("..");
+    /** These files with the ones given, which never replace one of these. */
+    public PipelineFiles with(Map<String, String> more) {
+        Map<String, String> all = new HashMap<>(more);
+        all.putAll(files);
+        return new PipelineFiles(main, all);
     }
 }

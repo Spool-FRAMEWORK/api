@@ -11,7 +11,7 @@ public final class InMemoryDeployments implements Deployments {
 
     @Override
     public synchronized void save(Deployment deployment) {
-        byName.put(deployment.name(), deployment);
+        byName.put(deployment.id(), deployment);
     }
 
     @Override

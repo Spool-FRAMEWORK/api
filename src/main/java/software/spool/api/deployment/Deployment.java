@@ -4,12 +4,14 @@ import java.util.Objects;
 import java.util.Optional;
 
 /**
- * A pipeline deployed in the cluster, as its files (ADR-036): its name, who sent it, its version, which goes up each time it is sent again,
- * the node it is assigned to, if any live node could take it, and what that node said of it. {@code error} is there
- * only when it failed.
+ * A pipeline deployed in the cluster, as its files (ADR-036): its name, the system it belongs to, if any, who sent it,
+ * its version, which goes up each time it changes, the node it is assigned to, if any live node could take it, and what
+ * that node said of it. {@code error} is there only when it failed.
  */
-public record Deployment(String name, DeploymentOwner owner, int version, PipelineFiles files, Optional<String> node,
-                         Progress progress, Optional<String> error) {
+public record Deployment(String name, Optional<String> system, DeploymentOwner owner, int version, PipelineFiles files,
+                         Optional<String> node, Progress progress, Optional<String> error) {
+    private static final String SYSTEM_SEPARATOR = ".";
+
     /** How a deployment assigned to a node is going: starting until the node says it runs or failed to start. */
     public enum Progress {
         STARTING, RUNNING, FAILED
@@ -17,6 +19,7 @@ public record Deployment(String name, DeploymentOwner owner, int version, Pipeli
 
     public Deployment {
         Objects.requireNonNull(name, "name is required");
+        Objects.requireNonNull(system, "system is required");
         Objects.requireNonNull(owner, "owner is required");
         Objects.requireNonNull(files, "files are required");
         Objects.requireNonNull(node, "node is required");
@@ -26,28 +29,45 @@ public record Deployment(String name, DeploymentOwner owner, int version, Pipeli
     }
 
     public static Deployment first(String name, DeploymentOwner owner, PipelineFiles files) {
-        return new Deployment(name, owner, 1, files, Optional.empty(), Progress.STARTING, Optional.empty());
+        return first(Optional.empty(), name, owner, files);
+    }
+
+    public static Deployment first(Optional<String> system, String name, DeploymentOwner owner, PipelineFiles files) {
+        return new Deployment(name, system, owner, 1, files, Optional.empty(), Progress.STARTING, Optional.empty());
+    }
+
+    /** The key of the deployment among all of them: its name, after its system and a dot when it has one. */
+    public static String idOf(Optional<String> system, String name) {
+        return system.map(owning -> owning + SYSTEM_SEPARATOR + name).orElse(name);
+    }
+
+    public String id() {
+        return idOf(system, name);
     }
 
     /** The next version, sent by {@code sender}, on the same node and starting again. */
     public Deployment replacedBy(DeploymentOwner sender, PipelineFiles newFiles) {
-        return new Deployment(name, sender, version + 1, newFiles, node, Progress.STARTING, Optional.empty());
+        return new Deployment(name, system, sender, version + 1, newFiles, node, Progress.STARTING, Optional.empty());
     }
 
     /** On another node, or on none, it starts again. */
     public Deployment assignedTo(Optional<String> newNode) {
-        return new Deployment(name, owner, version, files, newNode, Progress.STARTING, Optional.empty());
+        return new Deployment(name, system, owner, version, files, newNode, Progress.STARTING, Optional.empty());
     }
 
     public Deployment running() {
-        return new Deployment(name, owner, version, files, node, Progress.RUNNING, Optional.empty());
+        return new Deployment(name, system, owner, version, files, node, Progress.RUNNING, Optional.empty());
     }
 
     public Deployment failedWith(String failure) {
-        return new Deployment(name, owner, version, files, node, Progress.FAILED, Optional.of(failure));
+        return new Deployment(name, system, owner, version, files, node, Progress.FAILED, Optional.of(failure));
     }
 
     public boolean isOn(String nodeId) {
         return node.filter(nodeId::equals).isPresent();
+    }
+
+    public boolean belongsTo(String systemName) {
+        return system.filter(systemName::equals).isPresent();
     }
 }
