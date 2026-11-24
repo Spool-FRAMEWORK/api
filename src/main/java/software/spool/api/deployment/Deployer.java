@@ -17,12 +17,12 @@ public final class Deployer {
         this.assigner = assigner;
     }
 
-    public Outcome deploy(String name, String descriptor, DeploymentOwner sender) {
-        Optional<String> problem = validation.problemOf(descriptor);
+    public Outcome deploy(String name, PipelineFiles files, DeploymentOwner sender) {
+        Optional<String> problem = files.problemWithThePaths().or(() -> validation.problemOf(files));
         if (problem.isPresent()) return new Outcome.Invalid(problem.get());
         Optional<Deployment> existing = deployments.find(name);
-        deployments.save(existing.map(current -> current.replacedBy(sender, descriptor))
-                .orElseGet(() -> Deployment.first(name, sender, descriptor)));
+        deployments.save(existing.map(current -> current.replacedBy(sender, files))
+                .orElseGet(() -> Deployment.first(name, sender, files)));
         assigner.assign();
         return new Outcome.Deployed(deployments.find(name).orElseThrow(), existing.isEmpty());
     }
@@ -31,7 +31,7 @@ public final class Deployer {
         return deployments.remove(name);
     }
 
-    /** What came of sending a descriptor. */
+    /** What came of sending a pipeline. */
     public sealed interface Outcome {
         /** The DSL found something wrong in the descriptor, and nothing was deployed. */
         record Invalid(String problem) implements Outcome {

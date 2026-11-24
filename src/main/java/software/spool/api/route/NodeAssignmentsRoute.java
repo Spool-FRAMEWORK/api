@@ -14,10 +14,11 @@ import software.spool.core.port.http.HttpRouteHandler;
 import software.spool.core.port.http.RouteAccess;
 
 import java.util.List;
+import java.util.Map;
 
 /**
  * {@code GET /spool/cluster/nodes/{id}/assignments}: the deployments assigned to a node, each with its version and
- * its descriptor, after bringing the assignments up to date, and for how long the node may keep running them without
+ * its files, after bringing the assignments up to date, and for how long the node may keep running them without
  * the API: the heartbeat timeout (ADR-031).
  */
 final class NodeAssignmentsRoute implements HttpRouteHandler {
@@ -54,9 +55,10 @@ final class NodeAssignmentsRoute implements HttpRouteHandler {
     record AssignmentsPayload(long leaseSeconds, List<AssignmentPayload> deployments) {
     }
 
-    record AssignmentPayload(String name, int version, String descriptor) {
+    record AssignmentPayload(String name, int version, String main, Map<String, String> files) {
         static AssignmentPayload of(Deployment deployment) {
-            return new AssignmentPayload(deployment.name(), deployment.version(), deployment.descriptor());
+            return new AssignmentPayload(deployment.name(), deployment.version(), deployment.files().main(),
+                    deployment.files().files());
         }
     }
 }

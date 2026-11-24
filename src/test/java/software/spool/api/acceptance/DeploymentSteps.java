@@ -9,6 +9,7 @@ import io.cucumber.java.en.When;
 import java.net.http.HttpResponse;
 import java.time.Duration;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.stream.StreamSupport;
 
@@ -16,6 +17,12 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 public class DeploymentSteps {
     private static final ObjectMapper JSON = new ObjectMapper();
+    private static final String INFRASTRUCTURE = """
+            infrastructure:
+              bus: {kind: EVENT_BUS, type: IN_MEMORY}
+              inbox: {kind: INBOX, type: FILE_SYSTEM, configuration: {path: /data/orders/inbox}}
+              lake: {kind: DATA_LAKE, type: FILE_SYSTEM, configuration: {path: /data/orders/lake}}
+            """;
     private static final String DESCRIPTOR = """
             infrastructure:
               bus: {kind: EVENT_BUS, type: IN_MEMORY}
@@ -88,6 +95,22 @@ public class DeploymentSteps {
         deploy("orders", descriptorOf("orders").replace(piece + ": {kind: DATA_LAKE, ", piece + ": {"));
     }
 
+    @When("{string} deploys {string} as the main file {string} that includes {string}")
+    public void deploysSeveralFiles(String person, String deployment, String main, String included) throws Exception {
+        deployFiles(deployment, main, Map.of(main, mainIncluding(deployment, included), included, INFRASTRUCTURE));
+    }
+
+    @When("{string} deploys {string} as the main file {string} that includes {string}, without sending it")
+    public void deploysWithoutTheIncludedFile(String person, String deployment, String main, String included) throws Exception {
+        deployFiles(deployment, main, Map.of(main, mainIncluding(deployment, included)));
+    }
+
+    @When("{string} deploys {string} with a file at the path {string}")
+    public void deploysAFileOutside(String person, String deployment, String path) throws Exception {
+        String main = deployment + ".spool.yaml";
+        deployFiles(deployment, main, Map.of(main, descriptorOf(deployment), path, INFRASTRUCTURE));
+    }
+
     @When("{string} withdraws the deployment {string}")
     public void withdraws(String person, String deployment) throws Exception {
         api.send("DELETE", "/spool/deployments/" + deployment, "", Optional.of(ApiUnderTest.DEPLOYER_SECRET));
@@ -152,6 +175,15 @@ public class DeploymentSteps {
         HttpResponse<String> response = api.query("POST", "/spool/cluster/nodes",
                 "{\"id\":\"" + node + "\",\"address\":\"http://" + node + ":8080\"}", Optional.of(ApiUnderTest.NODE_SECRET));
         assertThat(response.statusCode()).as(response.body()).isEqualTo(201);
+    }
+
+    private void deployFiles(String deployment, String main, Map<String, String> files) throws Exception {
+        api.send("PUT", "/spool/deployments/" + deployment, JSON.writeValueAsString(Map.of("main", main, "files", files)),
+                Optional.of(ApiUnderTest.DEPLOYER_SECRET), "application/json");
+    }
+
+    private static String mainIncluding(String deployment, String included) {
+        return "include: [" + included + "]\nmodules:\n  - ingester: {type: REACTIVE, id: " + deployment + "-ingester}\n";
     }
 
     private void deploy(String deployment, String descriptor) throws Exception {

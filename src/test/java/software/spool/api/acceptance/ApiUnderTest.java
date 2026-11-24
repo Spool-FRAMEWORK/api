@@ -63,7 +63,13 @@ public class ApiUnderTest {
 
     /** Sends the request and keeps its answer as the last one. */
     public HttpResponse<String> send(String method, String path, String body, Optional<String> secret) throws Exception {
-        HttpResponse<String> response = query(method, path, body, secret);
+        return send(method, path, body, secret, "application/yaml");
+    }
+
+    /** Sends the request with the content type given and keeps its answer as the last one. */
+    public HttpResponse<String> send(String method, String path, String body, Optional<String> secret, String contentType)
+            throws Exception {
+        HttpResponse<String> response = query(method, path, body, secret, contentType);
         last = Optional.of(response);
         return response;
     }
@@ -74,9 +80,15 @@ public class ApiUnderTest {
 
     /** Sends the request without keeping its answer, to check what the API has. */
     public HttpResponse<String> query(String method, String path, String body, Optional<String> secret) throws Exception {
+        return query(method, path, body, secret, "application/yaml");
+    }
+
+    private HttpResponse<String> query(String method, String path, String body, Optional<String> secret, String contentType)
+            throws Exception {
         byte[] bytes = body.getBytes();
         HttpRequest.Builder request = HttpRequest.newBuilder(URI.create("http://localhost:" + port + path))
-                .method(method, bytes.length == 0 ? HttpRequest.BodyPublishers.noBody() : HttpRequest.BodyPublishers.ofByteArray(bytes));
+                .method(method, bytes.length == 0 ? HttpRequest.BodyPublishers.noBody() : HttpRequest.BodyPublishers.ofByteArray(bytes))
+                .header("Content-Type", contentType);
         secret.map(value -> new HmacSigner(SIGNATURE, value, Optional.of(TIMESTAMP), clock).headersFor(bytes))
                 .orElse(Map.of()).forEach(request::header);
         return client.send(request.build(), HttpResponse.BodyHandlers.ofString());

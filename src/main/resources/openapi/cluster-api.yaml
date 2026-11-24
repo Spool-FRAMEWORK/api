@@ -177,8 +177,13 @@ paths:
         - $ref: '#/components/parameters/DeploymentName'
       requestBody:
         required: true
-        description: The descriptor, as a single YAML file without include
+        description: >
+          The pipeline: as JSON, its main file and every other file by its path relative to the main one (ADR-036);
+          as YAML, a pipeline of one file, named after the deployment
         content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PipelineFiles'
           application/yaml:
             schema:
               type: string
@@ -257,16 +262,33 @@ components:
           format: date-time
     Assignment:
       type: object
-      required: [name, version, descriptor]
+      required: [name, version, main, files]
       properties:
         name:
           type: string
         version:
           type: integer
           minimum: 1
-        descriptor:
+        main:
           type: string
-          description: The descriptor as it was sent
+          description: The path of the main file
+        files:
+          type: object
+          description: Every file of the pipeline, by its path, as it was sent
+          additionalProperties:
+            type: string
+    PipelineFiles:
+      type: object
+      required: [main, files]
+      properties:
+        main:
+          type: string
+          example: orders.spool.yaml
+        files:
+          type: object
+          description: Every file by its path relative to the main one, the main one included; no path may leave the pipeline
+          additionalProperties:
+            type: string
     AssignmentReport:
       type: object
       required: [version, state]
